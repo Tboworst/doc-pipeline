@@ -23,32 +23,27 @@ class IngestionService:
     """Service for loading and processing documents."""
     def load(self, file_path: str) -> Document:
         """Load a document, chunking if necessary."""
-        #create a path variable that maps to the file path
         path = Path(file_path)
-        # 1. Validate file exist
         if not path.exists():
             raise FileNotFoundError(f"Document not found: {file_path}")
-        # 2. Detect file type
-        file_type = path.suffix.lower()
-        if file_type not in SUPPORTED_TYPES:
-            raise ValueError(f"Unsupported file type: {file_type}")
-        # 3. Read content based on type
-        content = self._read_file([path,file_type])
+
+        file_type = self._detect_format(path)
+        content = self._read_file(path, file_type)
         chunks = None
-        #to check the size we want to use len and check the content
+
         if len(content.encode('utf-8')) > MAX_FILE_SIZE:
             chunks = self._chunk_if_needed(content)
-        
+
         return Document(
-        content=content,
-        file_path=str(path.absolute()),
-        file_type=file_type,
-        metadata={
-            'filename': path.name,
-            'size_bytes': path.stat().st_size,
-        },
-        chunks=chunks
-    )
+            content=content,
+            file_path=str(path.absolute()),
+            file_type=file_type,
+            metadata={
+                'filename': path.name,
+                'size_bytes': path.stat().st_size,
+            },
+            chunks=chunks,
+        )
 
     
     def _detect_format(self, path: Path) -> str:
@@ -85,14 +80,7 @@ class IngestionService:
             raise ValueError(f"Cannot read file type: {file_type}")
     
     def _chunk_if_needed(self, content: str) -> list:
-        """Split content into chunks if too large.
-        
-        Args:
-            content: The full document content
-            
-        Returns:
-            List of content chunks
-        """
+
         content_bytes = content.encode('utf-8')
         chunks = []
         
@@ -104,14 +92,6 @@ class IngestionService:
         return chunks
     
     def _read_pdf(self, path: Path) -> str:
-        """Extract text from PDF using PyPDF2.
-        
-        Args:
-            path: Path object to the PDF file
-            
-        Returns:
-            Extracted text from all pages
-        """
         from PyPDF2 import PdfReader
         
         reader = PdfReader(path)
