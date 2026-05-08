@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Doc Pipeline</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f5f5;
+      color: #1a1a1a;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #111;
+      color: #fff;
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header h1 { font-size: 1.2rem; font-weight: 600; letter-spacing: -0.3px; }
+    header span { font-size: 0.8rem; color: #888; background: #222; padding: 2px 8px; border-radius: 99px; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      padding: 24px 32px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 720px) {
+      .layout { grid-template-columns: 1fr; padding: 16px; }
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid #e5e5e5;
+      border-radius: 10px;
+      padding: 20px;
+    }
+    .card h2 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #666;
+      margin-bottom: 16px;
+    }
+
+    .card.full { grid-column: 1 / -1; }
+
+    label { display: block; font-size: 0.85rem; color: #555; margin-bottom: 5px; }
+
+    input[type="text"], select {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid #ddd;
+      border-radius: 7px;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="text"]:focus, select:focus { border-color: #111; }
+
+    .file-area {
+      border: 2px dashed #ddd;
+      border-radius: 8px;
+      padding: 28px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      position: relative;
+    }
+    .file-area:hover { border-color: #aaa; background: #fafafa; }
+    .file-area.dragover { border-color: #111; background: #f0f0f0; }
+    .file-area input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .file-area .icon { font-size: 1.8rem; margin-bottom: 6px; }
+    .file-area p { font-size: 0.85rem; color: #777; }
+    .file-area .file-name { font-size: 0.85rem; color: #111; font-weight: 500; margin-top: 6px; }
+
+    .row { display: flex; gap: 10px; margin-top: 12px; align-items: flex-end; }
+    .row select { flex: 1; }
+
+    btn, button {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 16px;
+      border: none;
+      border-radius: 7px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.85; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-primary { background: #111; color: #fff; width: 100%; justify-content: center; margin-top: 14px; }
+    .btn-secondary { background: #f0f0f0; color: #333; }
+    .btn-sm { padding: 6px 12px; font-size: 0.82rem; }
+
+    .status {
+      margin-top: 14px;
+      padding: 10px 12px;
+      border-radius: 7px;
+      font-size: 0.83rem;
+      display: none;
+    }
+    .status.success { background: #edfdf4; color: #15803d; border: 1px solid #bbf7d0; }
+    .status.error   { background: #fff1f2; color: #be123c; border: 1px solid #fecdd3; }
+    .status.loading { background: #f0f9ff; color: #0369a1; border: 1px solid #bae6fd; }
+
+    .spinner {
+      display: inline-block;
+      width: 13px; height: 13px;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    pre {
+      margin-top: 14px;
+      background: #f8f8f8;
+      border: 1px solid #e5e5e5;
+      border-radius: 7px;
+      padding: 12px;
+      font-size: 0.78rem;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      display: none;
+      max-height: 320px;
+      overflow-y: auto;
+    }
+
+    .results-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .result-item {
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 10px;
+      font-size: 0.83rem;
+    }
+    .result-item .meta {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .tag {
+      background: #f0f0f0;
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 0.78rem;
+      color: #555;
+    }
+    .result-item pre { margin-top: 8px; }
+
+    .empty { color: #aaa; font-size: 0.85rem; text-align: center; padding: 20px; }
+
+    .query-row { display: flex; gap: 8px; }
+    .query-row input { flex: 1; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Doc Pipeline</h1>
+  <span>Financial Document Parser</span>
+</header>
+
+<div class="layout">
+
+  <!-- Upload -->
+  <div class="card">
+    <h2>Upload Document</h2>
+    <div class="file-area" id="fileArea">
+      <input type="file" id="fileInput" accept=".txt,.md,.json,.csv,.pdf" />
+      <div class="icon">📄</div>
+      <p>Drop a file here or click to browse</p>
+      <p>Supported: .txt, .md, .json, .csv, .pdf</p>
+      <div class="file-name" id="fileName"></div>
+    </div>
+    <div class="row">
+      <div style="flex:1">
+        <label for="schemaSelect">Schema</label>
+        <select id="schemaSelect">
+          <option value="default">Default — title, summary, entities</option>
+          <option value="invoice">Invoice — number, vendor, total</option>
+          <option value="contract">Contract — parties, dates, terms</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn-primary" id="uploadBtn" disabled>Upload & Extract</button>
+    <div class="status" id="uploadStatus"></div>
+    <pre id="uploadResult"></pre>
+  </div>
+
+  <!-- Query -->
+  <div class="card">
+    <h2>Semantic Search</h2>
+    <label for="queryInput">Natural language query</label>
+    <div class="query-row">
+      <input type="text" id="queryInput" placeholder='e.g. "invoices over $500"' />
+      <button class="btn-secondary" id="queryBtn">Search</button>
+    </div>
+    <div class="status" id="queryStatus"></div>
+    <pre id="queryResult"></pre>
+  </div>
+
+  <!-- All Results -->
+  <div class="card full">
+    <div class="results-header">
+      <h2>Stored Extractions</h2>
+      <button class="btn-secondary btn-sm" id="refreshBtn">Refresh</button>
+    </div>
+    <div id="resultsList"><div class="empty">No extractions yet.</div></div>
+  </div>
+
+</div>
+
+<script>
+  const fileInput = document.getElementById('fileInput');
+  const fileArea  = document.getElementById('fileArea');
+  const fileName  = document.getElementById('fileName');
+  const uploadBtn = document.getElementById('uploadBtn');
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) {
+      fileName.textContent = fileInput.files[0].name;
+      uploadBtn.disabled = false;
+    }
+  });
+
+  fileArea.addEventListener('dragover', (e) => { e.preventDefault(); fileArea.classList.add('dragover'); });
+  fileArea.addEventListener('dragleave', () => fileArea.classList.remove('dragover'));
+  fileArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    fileArea.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      fileInput.files = dt.files;
+      fileName.textContent = file.name;
+      uploadBtn.disabled = false;
+    }
+  });
+
+  function showStatus(el, type, html) {
+    el.className = `status ${type}`;
+    el.innerHTML = html;
+    el.style.display = 'block';
+  }
+
+  uploadBtn.addEventListener('click', async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    const schema = document.getElementById('schemaSelect').value;
+    const statusEl = document.getElementById('uploadStatus');
+    const resultEl = document.getElementById('uploadResult');
+
+    showStatus(statusEl, 'loading', '<span class="spinner"></span> Processing document...');
+    resultEl.style.display = 'none';
+    uploadBtn.disabled = true;
+
+    try {
+      const form = new FormData();
+      form.append('file', file);
+
+      const res = await fetch(`/upload?schema=${schema}`, { method: 'POST', body: form });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        showStatus(statusEl, 'success', `Extracted successfully — ID #${data.extraction_id}`);
+        resultEl.textContent = JSON.stringify(data.data, null, 2);
+        resultEl.style.display = 'block';
+        loadResults();
+      } else {
+        showStatus(statusEl, 'error', data.detail || 'Upload failed.');
+      }
+    } catch (err) {
+      showStatus(statusEl, 'error', `Error: ${err.message}`);
+    } finally {
+      uploadBtn.disabled = false;
+    }
+  });
+
+  document.getElementById('queryBtn').addEventListener('click', async () => {
+    const query = document.getElementById('queryInput').value.trim();
+    if (!query) return;
+
+    const statusEl = document.getElementById('queryStatus');
+    const resultEl = document.getElementById('queryResult');
+
+    showStatus(statusEl, 'loading', '<span class="spinner"></span> Searching...');
+    resultEl.style.display = 'none';
+
+    try {
+      const res = await fetch('/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        showStatus(statusEl, 'success', `Found ${data.results_count} result(s)`);
+        resultEl.textContent = JSON.stringify(data.results, null, 2);
+        resultEl.style.display = 'block';
+      } else {
+        showStatus(statusEl, 'error', data.detail || 'Query failed.');
+      }
+    } catch (err) {
+      showStatus(statusEl, 'error', `Error: ${err.message}`);
+    }
+  });
+
+  document.getElementById('queryInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('queryBtn').click();
+  });
+
+  async function loadResults() {
+    const listEl = document.getElementById('resultsList');
+    try {
+      const res = await fetch('/results?limit=20');
+      const data = await res.json();
+
+      if (!data.results || data.results.length === 0) {
+        listEl.innerHTML = '<div class="empty">No extractions yet.</div>';
+        return;
+      }
+
+      listEl.innerHTML = data.results.map(r => `
+        <div class="result-item">
+          <div class="meta">
+            <span class="tag">#${r.id}</span>
+            <span class="tag">${r.filename}</span>
+            <span class="tag">${r.schema}</span>
+          </div>
+          <pre style="display:block">${JSON.stringify(r.extracted_data, null, 2)}</pre>
+        </div>
+      `).join('');
+    } catch (err) {
+      listEl.innerHTML = `<div class="empty">Failed to load results.</div>`;
+    }
+  }
+
+  document.getElementById('refreshBtn').addEventListener('click', loadResults);
+  loadResults();
+</script>
+</body>
+</html>

@@ -29,16 +29,26 @@ class ValidationService:
     }
 
     def validate(self, data: dict, schema: str = 'default') -> dict:
-        """Validate the output data against the chosen schema."""
+        """Validate the output data against the chosen schema.
+
+        Missing required fields and unknown extra fields are collected into
+        a 'misc' key rather than rejecting the document outright.
+        """
         rules = self.SCHEMA_RULES.get(schema, self.SCHEMA_RULES['default'])
-        errors = []
+        known_fields = set(rules.keys())
+        misc = {}
 
+        # Move missing/empty required fields into misc
         for field, required in rules.items():
-            value = data.get(field)
-            if required and not value:
-                errors.append(f"Missing required field: {field}")
+            if required and not data.get(field):
+                misc[field] = data.pop(field, None)
 
-        if errors:
-            raise ValueError('Validation failed: ' + '; '.join(errors))
+        # Move any extra fields the LLM returned that aren't in the schema into misc
+        for field in list(data.keys()):
+            if field not in known_fields:
+                misc[field] = data.pop(field)
+
+        if misc:
+            data['misc'] = misc
 
         return data
