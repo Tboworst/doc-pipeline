@@ -270,6 +270,49 @@
     el.style.display = 'block';
   }
 
+  // Poll /jobs/{jobId} every 2 seconds until the job is done or failed.
+  function pollJob(jobId) {
+    const statusEl = document.getElementById('uploadStatus');
+    const resultEl = document.getElementById('uploadResult');
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/jobs/${jobId}`);
+        const data = await res.json();
+
+        if (data.status === 'pending') {
+          // Job is queued but the worker hasn't picked it up yet.
+          showStatus(statusEl, 'loading', '<span class="spinner"></span> Queued...');
+
+        } else if (data.status === 'processing') {
+          // Worker has started — LLM is running.
+          showStatus(statusEl, 'loading', '<span class="spinner"></span> Extracting with AI...');
+
+        } else if (data.status === 'completed') {
+          // Done — stop polling, show the result, re-enable the button.
+          clearInterval(interval);
+          showStatus(statusEl, 'success', `Extracted successfully — ID #${data.extraction_id}`);
+          resultEl.textContent = JSON.stringify(data.data, null, 2);
+          resultEl.style.display = 'block';
+          uploadBtn.disabled = false;
+          loadResults();
+
+        } else if (data.status === 'failed') {
+          // Something went wrong in the background — stop polling, show error.
+          clearInterval(interval);
+          showStatus(statusEl, 'error', data.error || 'Extraction failed.');
+          uploadBtn.disabled = false;
+        }
+
+      } catch (err) {
+        // Network error while polling — stop and surface it.
+        clearInterval(interval);
+        showStatus(statusEl, 'error', `Polling error: ${err.message}`);
+        uploadBtn.disabled = false;
+      }
+    }, 2000); // check every 2 seconds
+  }
+
   uploadBtn.addEventListener('click', async () => {
     const file = fileInput.files[0];
     if (!file) return;
@@ -278,7 +321,7 @@
     const statusEl = document.getElementById('uploadStatus');
     const resultEl = document.getElementById('uploadResult');
 
-    showStatus(statusEl, 'loading', '<span class="spinner"></span> Processing document...');
+    showStatus(statusEl, 'loading', '<span class="spinner"></span> Uploading...');
     resultEl.style.display = 'none';
     uploadBtn.disabled = true;
 
@@ -286,22 +329,25 @@
       const form = new FormData();
       form.append('file', file);
 
+      // /upload now returns immediately with a job_id — no waiting for the LLM.
       const res = await fetch(`/upload?schema=${schema}`, { method: 'POST', body: form });
       const data = await res.json();
 
       if (res.ok && data.success) {
-        showStatus(statusEl, 'success', `Extracted successfully — ID #${data.extraction_id}`);
-        resultEl.textContent = JSON.stringify(data.data, null, 2);
-        resultEl.style.display = 'block';
-        loadResults();
+        // File accepted. Start polling for the result.
+        showStatus(statusEl, 'loading', '<span class="spinner"></span> Queued...');
+        pollJob(data.job_id);
       } else {
+        // The upload itself was rejected (bad schema, file too large, etc.).
         showStatus(statusEl, 'error', data.detail || 'Upload failed.');
+        uploadBtn.disabled = false;
       }
     } catch (err) {
       showStatus(statusEl, 'error', `Error: ${err.message}`);
-    } finally {
       uploadBtn.disabled = false;
     }
+    // Note: uploadBtn is re-enabled inside pollJob when the job finishes,
+    // not here — we want it locked while the background job is running.
   });
 
   document.getElementById('queryBtn').addEventListener('click', async () => {
