@@ -4,6 +4,7 @@ from .ingestion import IngestionService
 from .inference import InferenceService
 from .storage import StorageService
 from .validation import ValidationService
+from .database import create_db_and_tables, insert_extraction
 
 
 @click.group()
@@ -18,6 +19,8 @@ def cli():
 @click.option('--output-dir', default=None, help='Directory where outputs are saved')
 def run(file_path: str, schema: str, output_dir: str | None):
     """Run extraction on a single document."""
+    create_db_and_tables()
+
     click.echo(f'📥 Loading {file_path}')
     ingestion = IngestionService()
     document = ingestion.load(file_path)
@@ -33,6 +36,12 @@ def run(file_path: str, schema: str, output_dir: str | None):
     click.echo('💾 Saving result')
     storage = StorageService(output_dir=output_dir)
     output_path = storage.save(result, document.metadata)
+
+    insert_extraction(
+        filename=document.metadata["filename"],
+        schema_name=schema,
+        extracted_data=result.structured_data,
+    )
 
     click.echo(f'🎉 Saved output to {output_path}')
 
